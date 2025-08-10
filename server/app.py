@@ -98,24 +98,22 @@ def create_charge():
 
     return jsonify(resp.json()), 200
     
-# Aceita GET para validação de url (retorna 200 se o token confere)
-@app.get("/efi/webhook")
-@app.get("/efi/webhook/pix")
-def pix_webhook_ping():
+@app.route("/efi/webhook", methods=["GET", "POST", "PUT", "OPTIONS"])
+@app.route("/efi/webhook/pix", methods=["GET", "POST", "PUT", "OPTIONS"])
+def efi_webhook_unificado():
+  
     if not _ok_webhook_token():
         return ("unauthorized", 401)
-    return jsonify({"status": "ok"}), 200
 
+    if request.method in ("GET", "OPTIONS"):
+        return jsonify({"status": "ok"}), 200
+    if request.method == "PUT" and not (request.data or request.form or request.json):
+        return jsonify({"status": "ok"}), 200
 
     payload = request.get_json(silent=True) or {}
-
-    # TODO: sua lógica atual de processamento (chamar RPC do Supabase)
-    # if payload.get("type") == "pix.charge.paid":
-    #     ref_id = payload["data"]["reference_id"]
-    #     amount_cents = int(payload["data"]["amount"])
-    #     # chamar sua RPC idempotente aqui...
-
+    # TODO: aqui depois vamos chamar a RPC wallet_credit_pix(...) no Supabase
     return jsonify({"status": "received"}), 200
+
 
 @app.route("/efi/payouts", methods=["POST"])
 def create_payout():
