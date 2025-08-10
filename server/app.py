@@ -97,14 +97,15 @@ def create_charge():
     resp.raise_for_status()
 
     return jsonify(resp.json()), 200
-
-
-@app.route("/efi/webhook", methods=["POST"])
-@app.route("/efi/webhook/pix", methods=["POST"])  # opcional: aceita /pix se necessário
-def pix_webhook():
-    # valida token ?h=<TOKEN>
+    
+# Aceita GET para validação de url (retorna 200 se o token confere)
+@app.get("/efi/webhook")
+@app.get("/efi/webhook/pix")
+def pix_webhook_ping():
     if not _ok_webhook_token():
         return ("unauthorized", 401)
+    return jsonify({"status": "ok"}), 200
+
 
     payload = request.get_json(silent=True) or {}
 
