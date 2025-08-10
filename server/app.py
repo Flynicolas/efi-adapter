@@ -4,6 +4,8 @@ import tempfile
 import json
 import requests
 from flask import Flask, request, jsonify
+from hmac import compare_digest
+
 
 # ---------- CONFIGURAÇÃO INICIAL ----------
 
@@ -25,6 +27,16 @@ if EFI_CERT_BASE64:
     cert_temp.write(cert_bytes)
     cert_temp.flush()
     EFI_CERT_PATH = cert_temp.name
+    
+# --- Webhook token helper ---
+def _ok_webhook_token():
+    """
+    Valida o token de webhook via querystring ?h=<TOKEN>.
+    O TOKEN vem da env EFI_WEBHOOK_SECRET (defina no Railway).
+    """
+    expected = os.getenv("EFI_WEBHOOK_SECRET", "")
+    token = request.args.get("h", "")
+    return bool(expected) and compare_digest(token, expected)
 
 # ---------- FUNÇÕES AUXILIARES ----------
 
@@ -91,22 +103,26 @@ def create_charge():
     return jsonify(resp.json()), 200
 
 @app.route("/efi/webhook", methods=["POST"])
+@app.route("/efi/webhook/pix", methods=["POST"])  # opcional: aceita /pix se necessário
 def pix_webhook():
-    """
-    Recebe webhook de pagamento Pix (depósito).
-    """
-    payload = request.json
+    # valida token ?h=<TOKEN>
+    if not _ok_webhook_token():
+        return ("unauthorized", 401)
 
-    # TODO: validar assinatura se EFI_WEBHOOK_SECRET estiver configurado
+    payload = request.get_json(silent=True) or {}
 
-    if payload.get("type") == "pix.charge.paid":
-        ref_id = payload["data"]["reference_id"]
-        user_id = ref_id  # TODO: ajustar se ref_id não for user_id direto
-        amount_cents = int(payload["data"]["amount"])
-
-        update_wallet_balance(user_id, amount_cents, "credit")
+    # TODO: sua lógica atual de processamento:
+    # - validar assinatura oficial (se adotar)
+    # - localizar payment_id/provider_payment_id
+    # - chamar RPC wallet_credit_pix(...) no Supabase
+    # Exemplo (placeholder):
+    # if payload.get("type") == "pix.charge.paid":
+    #     ref_id = payload["data"]["reference_id"]
+    #     amount_cents = int(payload["data"]["amount"])
+    #     # chamar sua RPC aqui...
 
     return jsonify({"status": "received"}), 200
+
 
 @app.route("/efi/payouts", methods=["POST"])
 def create_payout():
@@ -134,21 +150,25 @@ def create_payout():
 
 @app.route("/efi/payouts/webhook", methods=["POST"])
 def payout_webhook():
-    """
-    Recebe webhook de confirmação de saque.
-    """
-    payload = request.json
+    # valida token ?h=<TOKEN>
+    if not _ok_webhook_token():
+        return ("unauthorized", 401)
 
-    # TODO: validar assinatura se EFI_WEBHOOK_SECRET estiver configurado
+    payload = request.get_json(silent=True) or {}
 
-    if payload.get("type") == "pix.send.success":
-        ref_id = payload["data"]["reference_id"]
-        user_id = ref_id  # TODO: ajustar se ref_id não for user_id direto
-        amount_cents = int(payload["data"]["amount"])
-
-        update_wallet_balance(user_id, amount_cents, "debit")
+    # TODO: sua lógica de payout:
+    # - se evento for "paid": rpc wallet_cashout_mark_paid(payout_id, provider_payout_id)
+    # - se "failed": rpc wallet_cashout_refund(payout_id)
+    # Exemplo (placeholder):
+    # evt = payload.get("type")
+    # data = payload.get("data", {})
+    # if evt == "payout.paid":
+    #     ...
+    # elif evt == "payout.failed":
+    #     ...
 
     return jsonify({"status": "received"}), 200
+
 
 # ---------- MAIN ----------
 if __name__ == "__main__":
