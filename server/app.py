@@ -6,9 +6,7 @@ import requests
 from flask import Flask, request, jsonify
 from hmac import compare_digest
 
-
 # ---------- CONFIGURAÇÃO INICIAL ----------
-
 app = Flask(__name__)
 
 @app.get("/health")
@@ -31,19 +29,18 @@ if EFI_CERT_BASE64:
     cert_temp.write(cert_bytes)
     cert_temp.flush()
     EFI_CERT_PATH = cert_temp.name
-    
+
 # --- Webhook token helper ---
 def _ok_webhook_token():
     """
     Valida o token de webhook via querystring ?h=<TOKEN>.
-    O TOKEN vem da env EFI_WEBHOOK_SECRET (defina no Railway).
+    O TOKEN vem da env EFI_WEBHOOK_SECRET (defina no Render).
     """
     expected = os.getenv("EFI_WEBHOOK_SECRET", "")
     token = request.args.get("h", "")
     return bool(expected) and compare_digest(token, expected)
 
 # ---------- FUNÇÕES AUXILIARES ----------
-
 def get_efi_access_token():
     url = f"{EFI_BASE_URL}/oauth/token"
     data = {
@@ -75,11 +72,6 @@ def update_wallet_balance(user_id, amount_cents, tx_type):
     r.raise_for_status()
 
 # ---------- ROTAS ----------
-
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"}), 200
-
 @app.route("/efi/charges", methods=["POST"])
 def create_charge():
     """
@@ -115,18 +107,13 @@ def pix_webhook():
 
     payload = request.get_json(silent=True) or {}
 
-    # TODO: sua lógica atual de processamento:
-    # - validar assinatura oficial (se adotar)
-    # - localizar payment_id/provider_payment_id
-    # - chamar RPC wallet_credit_pix(...) no Supabase
-    # Exemplo (placeholder):
+    # TODO: sua lógica atual de processamento (chamar RPC do Supabase)
     # if payload.get("type") == "pix.charge.paid":
     #     ref_id = payload["data"]["reference_id"]
     #     amount_cents = int(payload["data"]["amount"])
-    #     # chamar sua RPC aqui...
+    #     # chamar sua RPC idempotente aqui...
 
     return jsonify({"status": "received"}), 200
-
 
 @app.route("/efi/payouts", methods=["POST"])
 def create_payout():
@@ -160,19 +147,12 @@ def payout_webhook():
 
     payload = request.get_json(silent=True) or {}
 
-    # TODO: sua lógica de payout:
-    # - se evento for "paid": rpc wallet_cashout_mark_paid(payout_id, provider_payout_id)
-    # - se "failed": rpc wallet_cashout_refund(payout_id)
-    # Exemplo (placeholder):
+    # TODO: lógica de payout (chamar RPCs conforme status)
     # evt = payload.get("type")
-    # data = payload.get("data", {})
-    # if evt == "payout.paid":
-    #     ...
-    # elif evt == "payout.failed":
-    #     ...
+    # if evt == "payout.paid": wallet_cashout_mark_paid(...)
+    # elif evt == "payout.failed": wallet_cashout_refund(...)
 
     return jsonify({"status": "received"}), 200
-
 
 # ---------- MAIN ----------
 if __name__ == "__main__":
