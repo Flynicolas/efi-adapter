@@ -1,1 +1,1 @@
-
+web: gunicorn server.app:app -b 0.0.0.0:$PORT --workers 2 --threads 8 --timeout 90
