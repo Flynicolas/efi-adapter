@@ -43,14 +43,13 @@ def _ok_webhook_token():
 # ---------- FUNÇÕES AUXILIARES ----------
 def get_efi_access_token():
     url = f"{EFI_BASE_URL}/oauth/token"
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": EFI_CLIENT_ID,
-        "client_secret": EFI_CLIENT_SECRET
-    }
-    resp = requests.post(url, data=data, cert=EFI_CERT_PATH)
+    # Basic Auth com client_id/secret + grant_type
+    auth = (EFI_CLIENT_ID, EFI_CLIENT_SECRET)
+    payload = {"grant_type": "client_credentials"}
+    resp = requests.post(url, auth=auth, json=payload, cert=EFI_CERT_PATH, timeout=30)
     resp.raise_for_status()
     return resp.json()["access_token"]
+
 
 def update_wallet_balance(user_id, amount_cents, tx_type):
     """
@@ -72,31 +71,33 @@ def update_wallet_balance(user_id, amount_cents, tx_type):
     r.raise_for_status()
 
 # ---------- ROTAS ----------
+
 @app.route("/efi/charges", methods=["POST"])
 def create_charge():
     """
-    Cria cobrança Pix na EFI.
-    Espera: { "user_id": "...", "amount_cents": 1000 }
+    Cria cobrança Pix na Efí.
+    Espera: { "user_id": "<uuid>", "amount_cents": 1000, "description": "opcional" }
     """
-    data = request.json
+    data = request.json or {}
+    amount_cents = int(data["amount_cents"])
+    description = data.get("description", "Pagamento Baú Premiado")
+
     access_token = get_efi_access_token()
 
     payload = {
-        "calendar": {"expiracao": 3600},
-        "valor": {"original": f"{data['amount_cents']/100:.2f}"},
-        "chave": "SUA_CHAVE_PIX_SANDBOX",  # TODO: trocar pela chave Pix correta
-        "solicitacaoPagador": "Pagamento Baú Premiado"
+        "calendario": {"expiracao": 3600},
+        "valor": {"original": f"{amount_cents/100:.2f}"},
+        "chave": os.getenv("EFI_PIX_KEY"),
+        "solicitacaoPagador": description
     }
 
     url = f"{EFI_BASE_URL}/v2/cob"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    resp = requests.post(url, headers=headers, json=payload, cert=EFI_CERT_PATH)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    resp = requests.post(url, headers=headers, json=payload, cert=EFI_CERT_PATH, timeout=30)
     resp.raise_for_status()
 
     return jsonify(resp.json()), 200
+
 
 @app.route("/efi/webhook", methods=["POST"])
 @app.route("/efi/webhook/pix", methods=["POST"])  # opcional: aceita /pix se necessário
