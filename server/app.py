@@ -14,9 +14,6 @@ app = Flask(__name__)
 @app.get("/health")
 def health():
     return jsonify({"status": "ok"}), 200
-@app.get("/")
-def index():
-    return jsonify({"ok": True, "service": "efi-adapter"}), 200
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE = os.getenv("SUPABASE_SERVICE_ROLE")
